@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>RotasiMaster AR - Rotasi Bangun Datar 2D | Kamera Live Background</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: #000;
+            min-height: 100vh; overflow: hidden; position: fixed; width: 100%; height: 100%;
+        }
+        .ar-container {
+            position: relative; width: 100%; height: 100%; overflow: hidden;
+        }
+        #video-bg {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            object-fit: cover; z-index: 1; transform: scaleX(-1);
+        }
+        #ar-canvas {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; z-index: 2;
+            background: transparent;
+        }
+        .ar-overlay {
+            position: absolute; bottom: 0; left: 0; right: 0; z-index: 10;
+            background: linear-gradient(to top, rgba(0,0,0,0.85), transparent);
+            padding: 20px 16px 30px;
+            pointer-events: none;
+        }
+        .control-panel-ar {
+            position: absolute; top: 70px; right: 12px; bottom: 20px; width: 340px;
+            background: rgba(15,23,42,0.92); backdrop-filter: blur(12px);
+            border-radius: 24px; padding: 16px; z-index: 20;
+            overflow-y: auto; pointer-events: auto;
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+        .control-panel-ar::-webkit-scrollbar { width: 4px; }
+        .control-panel-ar::-webkit-scrollbar-track { background: #334155; border-radius: 4px; }
+        .control-panel-ar::-webkit-scrollbar-thumb { background: #f97316; border-radius: 4px; }
+        
+        .panel-section {
+            background: rgba(30,41,59,0.8); border-radius: 16px; padding: 12px; margin-bottom: 12px;
+            backdrop-filter: blur(4px);
+        }
+        .panel-section h3 {
+            font-family: 'Poppins', sans-serif; color: #f97316; margin-bottom: 10px;
+            font-size: 0.85rem; display: flex; align-items: center; gap: 6px; border-left: 3px solid #f97316; padding-left: 10px;
+        }
+        .shape-selector { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+        .shape-btn {
+            padding: 5px 10px; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
+            color: #e2e8f0; border-radius: 20px; font-weight: 500; cursor: pointer; font-size: 0.65rem;
+            transition: all 0.2s;
+        }
+        .shape-btn.active { background: linear-gradient(95deg, #4f46e5, #f97316); border-color: #f97316; color: white; }
+        .shape-btn i { margin-right: 4px; font-size: 10px; }
+        
+        .coord-input-group { margin-bottom: 10px; }
+        .coord-input-group label { font-size: 0.65rem; color: #94a3b8; display: block; margin-bottom: 4px; }
+        .coord-input { display: flex; gap: 8px; }
+        .coord-input input {
+            flex: 1; padding: 6px 10px; background: rgba(0,0,0,0.5); border: 1px solid #475569;
+            border-radius: 12px; color: white; font-size: 0.75rem; text-align: center;
+        }
+        .coord-input input:focus { outline: none; border-color: #f97316; }
+        
+        .angle-buttons { display: flex; gap: 8px; margin-bottom: 12px; }
+        .angle-btn {
+            flex: 1; background: rgba(255,255,255,0.1); border: none; padding: 6px;
+            border-radius: 20px; color: #cbd5e1; font-weight: 600; cursor: pointer; font-size: 0.7rem;
+            text-align: center;
+        }
+        .angle-btn.active { background: linear-gradient(95deg, #4f46e5, #f97316); color: white; }
+        
+        .btn-rotate {
+            width: 100%; padding: 10px; background: linear-gradient(105deg, #4f46e5, #ea580c);
+            color: white; border: none; border-radius: 30px; font-weight: bold; margin-top: 6px;
+            display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;
+            font-size: 0.8rem;
+        }
+        .btn-animate { background: linear-gradient(105deg, #f97316, #dc2626); }
+        .action-buttons { display: flex; gap: 8px; margin-top: 8px; }
+        .action-btn {
+            flex: 1; padding: 6px; border-radius: 20px; font-weight: 600; border: none; cursor: pointer;
+            background: #4f46e5; color: white; font-size: 0.7rem;
+        }
+        .action-btn.warning { background: #f97316; }
+        
+        .tabel-hasil { width: 100%; border-collapse: collapse; font-size: 0.6rem; margin-top: 8px; }
+        .tabel-hasil th, .tabel-hasil td { border: 1px solid #475569; padding: 4px 6px; text-align: center; color: #e2e8f0; }
+        .tabel-hasil th { background: #4f46e5; color: white; }
+        
+        .rumus-box { background: rgba(0,0,0,0.5); border-radius: 12px; padding: 8px; text-align: center; font-size: 0.6rem; color: #a5f3fc; margin-top: 8px; }
+        .penyelesaian-box { background: rgba(0,0,0,0.5); border-radius: 12px; padding: 8px; font-size: 0.6rem; max-height: 150px; overflow-y: auto; margin-top: 8px; color: #fef3c7; }
+        .animation-status { font-size: 0.6rem; text-align: center; margin-top: 8px; color: #94a3b8; }
+        
+        .ar-title {
+            position: absolute; top: 20px; left: 20px; z-index: 20;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+            padding: 8px 16px; border-radius: 30px; color: white;
+            font-size: 0.8rem; font-weight: bold; pointer-events: none;
+        }
+        .ar-title i { color: #f97316; margin-right: 6px; }
+        
+        .ar-instruction {
+            position: absolute; bottom: 20px; left: 20px; right: 20px; z-index: 20;
+            text-align: center; font-size: 0.6rem; color: #94a3b8;
+            background: rgba(0,0,0,0.5); padding: 6px 12px; border-radius: 20px;
+            pointer-events: none;
+        }
+        
+        .status-ar {
+            position: absolute; top: 20px; right: 20px; z-index: 25;
+            background: rgba(0,0,0,0.7); backdrop-filter: blur(8px);
+            padding: 6px 14px; border-radius: 30px; color: #4ade80;
+            font-size: 0.7rem; font-weight: bold; pointer-events: none;
+            border: 1px solid #4ade80;
+        }
+        
+        @media (max-width: 700px) {
+            .control-panel-ar { width: 280px; right: 8px; top: 60px; }
+            .panel-section { padding: 10px; }
+        }
+    </style>
+</head>
+<body>
+<div class="ar-container">
+    <video id="video-bg" autoplay playsinline muted></video>
+    <canvas id="ar-canvas"></canvas>
+    
+    <div class="ar-title">
+        <i class="fas fa-cube"></i> ROTASI MASTER AR | Kamera Live Background
+    </div>
+    <div class="status-ar" id="arStatus">
+        <i class="fas fa-video"></i> Kamera AKTIF
+    </div>
+    
+    <div class="control-panel-ar">
+        <div class="panel-section">
+            <h3><i class="fas fa-shapes"></i> Pilih Bangun</h3>
+            <div class="shape-selector">
+                <button id="shapePoint" class="shape-btn active"><i class="fas fa-circle"></i> Titik</button>
+                <button id="shapeTriangle" class="shape-btn"><i class="fas fa-triangle"></i> Segitiga</button>
+                <button id="shapeSquare" class="shape-btn"><i class="fas fa-square"></i> Persegi</button>
+                <button id="shapeRectangle" class="shape-btn"><i class="fas fa-rectangle-ad"></i> Persegi Panjang</button>
+                <button id="shapePentagon" class="shape-btn"><i class="fas fa-pentagon"></i> Segi Lima</button>
+                <button id="shapeHexagon" class="shape-btn"><i class="fas fa-hexagon"></i> Segi Enam</button>
+                <button id="shapeCircle" class="shape-btn"><i class="fas fa-circle"></i> Lingkaran</button>
+                <button id="shapeStar" class="shape-btn"><i class="fas fa-star-of-life"></i> Bintang</button>
+            </div>
+        </div>
+        
+        <div class="panel-section">
+            <h3><i class="fas fa-edit"></i> Koordinat</h3>
+            <div id="inputArea">
+                <div id="pointInput">
+                    <div class="coord-input-group"><label>📍 Titik P (x, y)</label><div class="coord-input"><input type="number" id="pointX" value="3" step="0.5"><input type="number" id="pointY" value="2" step="0.5"></div></div>
+                    <div class="action-buttons"><button id="applyPointBtn" class="action-btn">Terapkan</button><button id="resetPointBtn" class="action-btn warning">Reset</button></div>
+                </div>
+                <div id="triangleInput" style="display:none;">
+                    <div class="coord-input-group"><label>A (x,y)</label><div class="coord-input"><input id="triAx" value="0"><input id="triAy" value="3"></div></div>
+                    <div class="coord-input-group"><label>B (x,y)</label><div class="coord-input"><input id="triBx" value="-2.5"><input id="triBy" value="-1.5"></div></div>
+                    <div class="coord-input-group"><label>C (x,y)</label><div class="coord-input"><input id="triCx" value="2.5"><input id="triCy" value="-1.5"></div></div>
+                    <div class="action-buttons"><button id="applyTriangleBtn" class="action-btn">Terapkan</button><button id="resetTriangleBtn" class="action-btn warning">Reset</button></div>
+                </div>
+                <div id="squareInput" style="display:none;">
+                    <div class="coord-input-group"><label>A</label><div class="coord-input"><input id="squareAx" value="-2"><input id="squareAy" value="2"></div></div>
+                    <div class="coord-input-group"><label>B</label><div class="coord-input"><input id="squareBx" value="2"><input id="squareBy" value="2"></div></div>
+                    <div class="coord-input-group"><label>C</label><div class="coord-input"><input id="squareCx" value="2"><input id="squareCy" value="-2"></div></div>
+                    <div class="coord-input-group"><label>D</label><div class="coord-input"><input id="squareDx" value="-2"><input id="squareDy" value="-2"></div></div>
+                    <div class="action-buttons"><button id="applySquareBtn" class="action-btn">Terapkan</button><button id="resetSquareBtn" class="action-btn warning">Reset</button></div>
+                </div>
+                <div id="rectangleInput" style="display:none;">
+                    <div class="coord-input-group"><label>A</label><div class="coord-input"><input id="rectAx" value="-3"><input id="rectAy" value="1.5"></div></div>
+                    <div class="coord-input-group"><label>B</label><div class="coord-input"><input id="rectBx" value="3"><input id="rectBy" value="1.5"></div></div>
+                    <div class="coord-input-group"><label>C</label><div class="coord-input"><input id="rectCx" value="3"><input id="rectCy" value="-1.5"></div></div>
+                    <div class="coord-input-group"><label>D</label><div class="coord-input"><input id="rectDx" value="-3"><input id="rectDy" value="-1.5"></div></div>
+                    <div class="action-buttons"><button id="applyRectangleBtn" class="action-btn">Terapkan</button><button id="resetRectangleBtn" class="action-btn warning">Reset</button></div>
+                </div>
+                <div id="pentagonInput" style="display:none;">
+                    <div class="coord-input-group"><label>Pusat (x,y)</label><div class="coord-input"><input id="pentCenterX" value="0"><input id="pentCenterY" value="0"></div></div>
+                    <div class="coord-input-group"><label>Radius</label><input id="pentRadius" value="3" type="number" style="width:100%; padding:6px; background:#1e293b; border:1px solid #475569; border-radius:12px; color:white;"></div>
+                    <div class="action-buttons"><button id="applyPentagonBtn" class="action-btn">Terapkan</button><button id="resetPentagonBtn" class="action-btn warning">Reset</button></div>
+                </div>
+                <div id="hexagonInput" style="display:none;">
+                    <div class="coord-input-group"><label>Pusat</label><div class="coord-input"><input id="hexCenterX" value="0"><input id="hexCenterY" value="0"></div></div>
+                    <div class="coord-input-group"><label>Radius</label><input id="hexRadius" value="3" style="width:100%; padding:6px; background:#1e293b; border:1px solid #475569; border-radius:12px; color:white;"></div>
+                    <div class="action-buttons"><button id="applyHexagonBtn" class="action-btn">Terapkan</button><button id="resetHexagonBtn" class="action-btn warning">Reset</button></div>
+                </div>
+                <div id="circleInput" style="display:none;">
+                    <div class="coord-input-group"><label>Pusat</label><div class="coord-input"><input id="circleCenterX" value="0"><input id="circleCenterY" value="0"></div></div>
+                    <div class="coord-input-group"><label>Radius</label><input id="circleRadius" value="3" style="width:100%; padding:6px; background:#1e293b; border:1px solid #475569; border-radius:12px; color:white;"></div>
+                    <div class="action-buttons"><button id="applyCircleBtn" class="action-btn">Terapkan</button><button id="resetCircleBtn" class="action-btn warning">Reset</button></div>
+                </div>
+                <div id="starInput" style="display:none;">
+                    <div class="coord-input-group"><label>Pusat</label><div class="coord-input"><input id="starCenterX" value="0"><input id="starCenterY" value="0"></div></div>
+                    <div class="coord-input-group"><label>R Luar</label><input id="starROuter" value="3" style="width:100%; margin-bottom:8px; padding:6px; background:#1e293b; border:1px solid #475569; border-radius:12px; color:white;"></div>
+                    <div class="coord-input-group"><label>R Dalam</label><input id="starRInner" value="1.5" style="width:100%; padding:6px; background:#1e293b; border:1px solid #475569; border-radius:12px; color:white;"></div>
+                    <div class="action-buttons"><button id="applyStarBtn" class="action-btn">Terapkan</button><button id="resetStarBtn" class="action-btn warning">Reset</button></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="panel-section">
+            <h3><i class="fas fa-undo-alt"></i> Sudut Rotasi</h3>
+            <div class="angle-buttons">
+                <button class="angle-btn active" data-angle="90">90°</button>
+                <button class="angle-btn" data-angle="180">180°</button>
+                <button class="angle-btn" data-angle="270">270°</button>
+                <button class="angle-btn" data-angle="360">360°</button>
+            </div>
+            <button id="rotateBtn" class="btn-rotate"><i class="fas fa-sync-alt"></i> ROTASIKAN</button>
+            <button id="animateBtn" class="btn-rotate btn-animate"><i class="fas fa-play"></i> ANIMASI</button>
+            <button id="stopBtn" class="btn-rotate" style="background:#dc2626; display:none;"><i class="fas fa-stop"></i> STOP</button>
+            <div class="speed-control" style="display:flex; align-items:center; gap:8px; margin-top:10px; background:#1e293b; padding:6px 12px; border-radius:30px;">
+                <span style="color:#94a3b8; font-size:10px;">⚡</span>
+                <input type="range" id="speedSlider" min="10" max="80" value="35" style="flex:1;">
+                <span id="speedValue" style="color:#94a3b8; font-size:10px;">35</span><span style="color:#94a3b8; font-size:10px;">ms</span>
+            </div>
+        </div>
+        
+        <div class="panel-section">
+            <h3><i class="fas fa-table"></i> Hasil Rotasi</h3>
+            <table class="tabel-hasil" id="tabelHasilRotasi">
+                <thead><tr><th>Titik</th><th>Asli (x,y)</th><th>Hasil (x',y')</th></tr></thead>
+                <tbody id="tabelBody"><tr><td colspan="3" style="text-align:center;">Belum dirotasi</td></tr></tbody>
+            </table>
+            <div class="rumus-box" id="rumusText">Rumus: (x·cosθ - y·sinθ, x·sinθ + y·cosθ)</div>
+            <div class="penyelesaian-box" id="penyelesaianStep">📐 Pilih sudut, lalu tekan ROTASIKAN</div>
+        </div>
+        <div class="animation-status" id="animStatus">✨ AR Mode - Kamera Live | Geser layar untuk melihat dari berbagai sudut</div>
+    </div>
+    
+    <div class="ar-instruction">
+        <i class="fas fa-video"></i> Kamera Aktif | Sumbu X (merah) dan Y (hijau) dengan angka | Geser untuk rotasi 3D
+    </div>
+</div>
+
+<script type="importmap">
+    { "imports": { "three": "https://unpkg.com/three@0.128.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/" } }
+</script>
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+    
+    // ========== KAMERA LIVE ==========
+    const videoElement = document.getElementById('video-bg');
+    async function startCamera() {
+        try {
+            let stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } } });
+            videoElement.srcObject = stream;
+            await videoElement.play();
+            document.getElementById('arStatus').innerHTML = '<i class="fas fa-video"></i> Kamera AR AKTIF';
+            document.getElementById('animStatus').innerHTML = '📷 Kamera Live Aktif | Geser layar untuk melihat objek 3D di atas kamera';
+        } catch (err) {
+            try {
+                let stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                videoElement.srcObject = stream;
+                await videoElement.play();
+                document.getElementById('arStatus').innerHTML = '<i class="fas fa-video"></i> Kamera Depan Aktif';
+            } catch (error) {
+                document.getElementById('arStatus').innerHTML = '<i class="fas fa-exclamation-triangle"></i> Kamera tidak tersedia';
+                document.getElementById('animStatus').innerHTML = '⚠️ Gagal akses kamera. Gunakan HTTPS atau izinkan kamera.';
+            }
+        }
+    }
+    startCamera();
+    
+    // --- INISIALISASI THREE.JS ---
+    const canvas = document.getElementById('ar-canvas');
+    const scene = new THREE.Scene();
+    scene.background = null; // Transparan, video sebagai background
+    
+    const camera3D = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera3D.position.set(0, 2, 12);
+    camera3D.lookAt(0, 0, 0);
+    
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0x000000, 0);
+    
+    // CSS2 Renderer untuk teks label angka pada sumbu
+    const labelRenderer = new CSS2DRenderer();
+    labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    labelRenderer.domElement.style.position = 'absolute';
+    labelRenderer.domElement.style.top = '0px';
+    labelRenderer.domElement.style.left = '0px';
+    labelRenderer.domElement.style.pointerEvents = 'none';
+    labelRenderer.domElement.style.zIndex = '5';
+    document.querySelector('.ar-container').appendChild(labelRenderer.domElement);
+    
+    const controls = new OrbitControls(camera3D, canvas);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.zoomSpeed = 0.8;
+    controls.enablePan = true;
+    controls.panSpeed = 0.5;
+    controls.target.set(0, 0, 0);
+    
+    // --- DATA ROTASI (SEMUA FITUR TETAP) ---
+    let currentShape = 'point';
+    let targetAngle = 90;
+    let isAnimating = false, animInterval = null, currentAnim = 0;
+    
+    let pointData = { x: 3, y: 2 };
+    let trianglePoints = [{ x: 0, y: 3, label:'A'},{ x: -2.5, y: -1.5, label:'B'},{ x: 2.5, y: -1.5, label:'C'}];
+    let squarePoints = [{ x: -2, y:2, label:'A'},{ x:2,y:2,label:'B'},{ x:2,y:-2,label:'C'},{ x:-2,y:-2,label:'D'}];
+    let rectanglePoints = [{ x:-3,y:1.5,label:'A'},{ x:3,y:1.5,label:'B'},{ x:3,y:-1.5,label:'C'},{ x:-3,y:-1.5,label:'D'}];
+    let pentagonPoints=[], hexagonPoints=[], circlePoints=[], starPoints=[];
+    let pentagonParam={center:{x:0,y:0}, radius:3}, hexagonParam={center:{x:0,y:0}, radius:3}, circleParam={center:{x:0,y:0}, radius:3}, starParam={center:{x:0,y:0}, rOuter:3, rInner:1.5};
+    
+    function rotatePt(x,y,deg){ let rad=deg*Math.PI/180, c=Math.cos(rad), s=Math.sin(rad); return { x: x*c - y*s, y: x*s + y*c }; }
+    function rotatePoints(pts,deg){ return pts.map(p=>{ let r=rotatePt(p.x,p.y,deg); return {...r, label:p.label}; }); }
+    function formatNum(n){ let v=Math.round(n*100)/100; return Math.abs(v)<0.01? "0" : v; }
+    
+    function genPentagon(){ let pts=[]; for(let i=0;i<5;i++){ let ang=(i*72-90)*Math.PI/180; pts.push({ x: pentagonParam.center.x + Math.cos(ang)*pentagonParam.radius, y: pentagonParam.center.y + Math.sin(ang)*pentagonParam.radius, label: String.fromCharCode(65+i) }); } return pts; }
+    function genHexagon(){ let pts=[]; for(let i=0;i<6;i++){ let ang=(i*60-90)*Math.PI/180; pts.push({ x: hexagonParam.center.x + Math.cos(ang)*hexagonParam.radius, y: hexagonParam.center.y + Math.sin(ang)*hexagonParam.radius, label: String.fromCharCode(65+i) }); } return pts; }
+    function genCircle(){ let pts=[]; for(let i=0;i<48;i++){ let ang=i*7.5*Math.PI/180; pts.push({ x: circleParam.center.x+Math.cos(ang)*circleParam.radius, y: circleParam.center.y+Math.sin(ang)*circleParam.radius, label:'' }); } return pts; }
+    function genStar(){ let pts=[]; for(let i=0;i<10;i++){ let ang=(i*36-90)*Math.PI/180; let r= (i%2===0)? starParam.rOuter : starParam.rInner; pts.push({ x: starParam.center.x+Math.cos(ang)*r, y: starParam.center.y+Math.sin(ang)*r, label:'' }); } return pts; }
+    
+    // --- OBJEK 3D ---
+    let mainGroup = null, rotatedGroup = null, trajectoryLines = [];
+    
+    function createShapeObject(points, color, opacity=1) {
+        if(!points || points.length === 0) return null;
+        const group = new THREE.Group();
+        
+        if(points.length === 1){
+            const sphereGeo = new THREE.SphereGeometry(0.25, 32, 32);
+            const material = new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: 0.4 });
+            const sphere = new THREE.Mesh(sphereGeo, material);
+            sphere.position.set(points[0].x, points[0].y, 0);
+            group.add(sphere);
+            return group;
+        }
+        
+        const shape = new THREE.Shape();
+        shape.moveTo(points[0].x, points[0].y);
+        for(let i=1; i<points.length; i++) shape.lineTo(points[i].x, points[i].y);
+        shape.closePath();
+        
+        const extrudeSettings = { steps: 1, depth: 0.1, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 3 };
+        const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+        geometry.computeVertexNormals();
+        geometry.center();
+        
+        const material = new THREE.MeshStandardMaterial({ 
+            color: color, side: THREE.DoubleSide, transparent: opacity<1, opacity: opacity,
+            emissive: color, emissiveIntensity: 0.15, roughness: 0.3, metalness: 0.1
+        });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.z = 0;
+        
+        const edgesGeo = new THREE.EdgesGeometry(geometry);
+        const edgesMat = new THREE.LineBasicMaterial({ color: 0xffffff });
+        const wireframe = new THREE.LineSegments(edgesGeo, edgesMat);
+        mesh.add(wireframe);
+        group.add(mesh);
+        return group;
+    }
+    
+    function update3DObjects() {
+        if(mainGroup) scene.remove(mainGroup);
+        if(rotatedGroup) scene.remove(rotatedGroup);
+        trajectoryLines.forEach(line => scene.remove(line));
+        trajectoryLines = [];
+        
+        let original = [], rotated = [];
+        if(currentShape === 'point') { original = [pointData]; rotated = rotatePoints([pointData], targetAngle); }
+        else if(currentShape === 'triangle') { original = trianglePoints; rotated = rotatePoints(trianglePoints, targetAngle); }
+        else if(currentShape === 'square') { original = squarePoints; rotated = rotatePoints(squarePoints, targetAngle); }
+        else if(currentShape === 'rectangle') { original = rectanglePoints; rotated = rotatePoints(rectanglePoints, targetAngle); }
+        else if(currentShape === 'pentagon') { original = pentagonPoints; rotated = rotatePoints(pentagonPoints, targetAngle); }
+        else if(currentShape === 'hexagon') { original = hexagonPoints; rotated = rotatePoints(hexagonPoints, targetAngle); }
+        else if(currentShape === 'circle') { original = circlePoints; rotated = rotatePoints(circlePoints, targetAngle); }
+        else if(currentShape === 'star') { original = starPoints; rotated = rotatePoints(starPoints, targetAngle); }
+        
+        if(isAnimating){
+            let interim = rotatePoints(original, currentAnim);
+            mainGroup = createShapeObject(original, 0xe11d48, 1);
+            rotatedGroup = createShapeObject(interim, 0x10b981, 0.85);
+        } else {
+            mainGroup = createShapeObject(original, 0xe11d48, 1);
+            rotatedGroup = createShapeObject(rotated, 0x10b981, 0.85);
+        }
+        
+        if(mainGroup) scene.add(mainGroup);
+        if(rotatedGroup) scene.add(rotatedGroup);
+        
+        // Jejak lintasan
+        if(!isAnimating && original.length >= 3){
+            const steps = 12;
+            for(let i=1; i<steps; i++){
+                let interpAngle = (i/steps) * targetAngle;
+                let trailPts = rotatePoints(original, interpAngle);
+                if(trailPts.length >= 3){
+                    const points3d = trailPts.map(p => new THREE.Vector3(p.x, p.y, 0.08));
+                    const lineGeo = new THREE.BufferGeometry().setFromPoints(points3d);
+                    const lineMat = new THREE.LineBasicMaterial({ color: 0xf97316, transparent: true, opacity: 0.35 });
+                    const trailLine = new THREE.Line(lineGeo, lineMat);
+                    scene.add(trailLine);
+                    trajectoryLines.push(trailLine);
+                }
+            }
+        }
+        
+        updateTabelRotasi(original, rotated);
+        updateRumusDanPenyelesaian(original, rotated, targetAngle);
+    }
+    
+    function updateTabelRotasi(original, rotated) {
+        const tabelBody = document.getElementById('tabelBody');
+        if(!original || original.length === 0) {
+            tabelBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Belum ada data</td></tr>';
+            return;
+        }
+        
+        if(currentShape === 'circle' || currentShape === 'star') {
+            tabelBody.innerHTML = `
+                <tr><td colspan="3" style="text-align:center; background:#fef3c7; color:#78350f;">${currentShape.toUpperCase()} memiliki ${original.length} titik<br>Semua titik dirotasi ${targetAngle}°</td></tr>
+                <tr><td style="font-weight:600;">Contoh</td><td>(${formatNum(original[0].x)}, ${formatNum(original[0].y)})</td><td>(${formatNum(rotated[0].x)}, ${formatNum(rotated[0].y)})</td></tr>
+            `;
+        } else {
+            let html = '';
+            for(let i = 0; i < original.length; i++) {
+                const o = original[i];
+                const r = rotated[i];
+                const label = o.label || (original.length === 1 ? 'P' : String.fromCharCode(65 + i));
+                html += `<tr><td style="font-weight:600;">${label}</td><td>(${formatNum(o.x)}, ${formatNum(o.y)})</td><td>(${formatNum(r.x)}, ${formatNum(r.y)})</td></tr>`;
+            }
+            tabelBody.innerHTML = html;
+        }
+    }
+    
+    function updateRumusDanPenyelesaian(orig, rot, angle) {
+        let rad = angle * Math.PI / 180;
+        let c = Math.cos(rad).toFixed(4);
+        let s = Math.sin(rad).toFixed(4);
+        document.getElementById('rumusText').innerHTML = `📐 Rumus: x' = x·cos${angle}° - y·sin${angle}° | y' = x·sin${angle}° + y·cos${angle}°<br>cos=${c} sin=${s}`;
+        
+        let html = `<strong>📐 Diketahui:</strong><br>• Sudut θ = ${angle}° (berlawanan jarum jam)<br>• Pusat O(0,0)<br>`;
+        if(currentShape === 'point' && orig[0]) {
+            let p = orig[0], pr = rot[0];
+            html += `<strong>✏️ Perhitungan:</strong><br>x' = ${formatNum(p.x)}·${c} - ${formatNum(p.y)}·${s} = ${pr.x.toFixed(3)}<br>y' = ${formatNum(p.x)}·${s} + ${formatNum(p.y)}·${c} = ${pr.y.toFixed(3)}<br><strong>✅ Hasil: P'(${formatNum(pr.x)}, ${formatNum(pr.y)})</strong>`;
+        } else {
+            html += `<strong>📌 Bangun ${currentShape.toUpperCase()} (${orig.length} titik)</strong><br>`;
+            for(let i=0; i<Math.min(orig.length, 3); i++) {
+                let o = orig[i], r = rot[i];
+                html += `${o.label || 'Titik'}: (${formatNum(o.x)},${formatNum(o.y)}) → (${formatNum(r.x)},${formatNum(r.y)})<br>`;
+            }
+            if(orig.length > 3) html += `<i>... dan titik lainnya (lihat tabel)</i><br>`;
+            html += `<strong>✅ Hasil rotasi ${angle}° selesai.</strong>`;
+        }
+        document.getElementById('penyelesaianStep').innerHTML = html;
+    }
+    
+    function directRotate() {
+        if(isAnimating) stopAnimation();
+        update3DObjects();
+    }
+    
+    function startAnimation() {
+        if(isAnimating) return;
+        isAnimating = true; currentAnim = 0;
+        document.getElementById('rotateBtn').disabled = true;
+        document.getElementById('animateBtn').style.display = 'none';
+        document.getElementById('stopBtn').style.display = 'block';
+        let speed = parseInt(document.getElementById('speedSlider').value);
+        if(animInterval) clearInterval(animInterval);
+        animInterval = setInterval(() => {
+            if(currentAnim >= targetAngle) {
+                finishAnimation();
+            } else {
+                currentAnim = Math.min(currentAnim + 5, targetAngle);
+                update3DObjects();
+                document.getElementById('animStatus').innerHTML = `🎬 Animasi ${Math.floor(currentAnim)}° / ${targetAngle}° | Kamera Live`;
+            }
+        }, speed);
+    }
+    
+    function finishAnimation() {
+        if(animInterval) clearInterval(animInterval);
+        isAnimating = false; currentAnim = targetAngle;
+        document.getElementById('rotateBtn').disabled = false;
+        document.getElementById('animateBtn').style.display = 'block';
+        document.getElementById('stopBtn').style.display = 'none';
+        update3DObjects();
+        document.getElementById('animStatus').innerHTML = '✅ Animasi selesai | Kamera Live Aktif';
+    }
+    
+    function stopAnimation() {
+        if(animInterval) clearInterval(animInterval);
+        isAnimating = false;
+        document.getElementById('rotateBtn').disabled = false;
+        document.getElementById('animateBtn').style.display = 'block';
+        document.getElementById('stopBtn').style.display = 'none';
+        update3DObjects();
+        document.getElementById('animStatus').innerHTML = '⏹️ Animasi dihentikan | Kamera Live';
+    }
+    
+    // ========== SISTEM KOORDINAT DENGAN ANGKA PADA SUMBU X DAN Y ==========
+    let gridHelper = null, axesHelpers = [];
+    let axisNumberLabels = [];
+    
+    function addCoordinateSystem() {
+        if(gridHelper) scene.remove(gridHelper);
+        axesHelpers.forEach(item => scene.remove(item));
+        axisNumberLabels.forEach(lbl => scene.remove(lbl));
+        axesHelpers = [];
+        axisNumberLabels = [];
+        
+        // Grid
+        const grid = new THREE.GridHelper(16, 24, 0x3b82f6, 0x334155);
+        grid.position.y = -0.1;
+        grid.material.transparent = true;
+        grid.material.opacity = 0.4;
+        scene.add(grid);
+        gridHelper = grid;
+        
+        // Sumbu X (merah)
+        const xAxisPoints = [new THREE.Vector3(-8, 0, 0), new THREE.Vector3(8, 0, 0)];
+        const xLineGeo = new THREE.BufferGeometry().setFromPoints(xAxisPoints);
+        const xLine = new THREE.Line(xLineGeo, new THREE.LineBasicMaterial({ color: 0xff6666, linewidth: 2 }));
+        scene.add(xLine);
+        axesHelpers.push(xLine);
+        
+        const xArrow = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(7.5,0,0), 0.7, 0xff6666, 0.5, 0.3);
+        scene.add(xArrow);
+        axesHelpers.push(xArrow);
+        
+        // Sumbu Y (hijau)
+        const yAxisPoints = [new THREE.Vector3(0, -6, 0), new THREE.Vector3(0, 6, 0)];
+        const yLineGeo = new THREE.BufferGeometry().setFromPoints(yAxisPoints);
+        const yLine = new THREE.Line(yLineGeo, new THREE.LineBasicMaterial({ color: 0x66ff66, linewidth: 2 }));
+        scene.add(yLine);
+        axesHelpers.push(yLine);
+        
+        const yArrow = new THREE.ArrowHelper(new THREE.Vector3(0,1,0), new THREE.Vector3(0,5.5,0), 0.7, 0x66ff66, 0.5, 0.3);
+        scene.add(yArrow);
+        axesHelpers.push(yArrow);
+        
+        // Label sumbu X dan Y
+        const xLabelDiv = document.createElement('div');
+        xLabelDiv.textContent = 'X';
+        xLabelDiv.style.cssText = 'color:#ff8888; font-size:14px; font-weight:bold; background:rgba(0,0,0,0.6); padding:2px 6px; border-radius:12px;';
+        const xLabelObj = new CSS2DObject(xLabelDiv);
+        xLabelObj.position.set(7.8, -0.3, 0);
+        scene.add(xLabelObj);
+        axesHelpers.push(xLabelObj);
+        
+        const yLabelDiv = document.createElement('div');
+        yLabelDiv.textContent = 'Y';
+        yLabelDiv.style.cssText = 'color:#88ff88; font-size:14px; font-weight:bold; background:rgba(0,0,0,0.6); padding:2px 6px; border-radius:12px;';
+        const yLabelObj = new CSS2DObject(yLabelDiv);
+        yLabelObj.position.set(0.3, 5.8, 0);
+        scene.add(yLabelObj);
+        axesHelpers.push(yLabelObj);
+        
+        // ANGKA PADA SUMBU X DARI -7 SAMPAI 7
+        for(let x = -7; x <= 7; x++) {
+            if(Math.abs(x) < 0.01) continue;
+            const div = document.createElement('div');
+            div.textContent = x;
+            div.style.cssText = 'color:#cbd5e1; font-size:10px; font-weight:500; background:rgba(0,0,0,0.6); padding:2px 5px; border-radius:12px; min-width:24px; text-align:center;';
+            const label = new CSS2DObject(div);
+            label.position.set(x, -0.35, 0);
+            scene.add(label);
+            axisNumberLabels.push(label);
+        }
+        
+        // ANGKA PADA SUMBU Y DARI -5 SAMPAI 5
+        for(let y = -5; y <= 5; y++) {
+            if(Math.abs(y) < 0.01) continue;
+            const div = document.createElement('div');
+            div.textContent = y;
+            div.style.cssText = 'color:#cbd5e1; font-size:10px; font-weight:500; background:rgba(0,0,0,0.6); padding:2px 5px; border-radius:12px; min-width:24px; text-align:center;';
+            const label = new CSS2DObject(div);
+            label.position.set(-0.4, y, 0);
+            scene.add(label);
+            axisNumberLabels.push(label);
+        }
+        
+        // Label O(0,0) di pusat
+        const originDiv = document.createElement('div');
+        originDiv.textContent = 'O(0,0)';
+        originDiv.style.cssText = 'color:#f97316; font-size:11px; font-weight:bold; background:rgba(0,0,0,0.7); padding:2px 8px; border-radius:16px; border:1px solid #f97316;';
+        const originLabel = new CSS2DObject(originDiv);
+        originLabel.position.set(-0.4, -0.4, 0);
+        scene.add(originLabel);
+        axisNumberLabels.push(originLabel);
+        
+        const detailGrid = new THREE.GridHelper(16, 32, 0x4f5b73, 0x2a3445);
+        detailGrid.position.y = -0.08;
+        detailGrid.material.transparent = true;
+        detailGrid.material.opacity = 0.15;
+        scene.add(detailGrid);
+        axesHelpers.push(detailGrid);
+    }
+    
+    // --- LIGHTING ---
+    function addLights() {
+        const ambient = new THREE.AmbientLight(0x404060, 0.7); scene.add(ambient);
+        const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        mainLight.position.set(5, 8, 4); mainLight.castShadow = true;
+        scene.add(mainLight);
+        const fillLight = new THREE.PointLight(0x4466cc, 0.5); fillLight.position.set(0, -1, 3); scene.add(fillLight);
+        const backLight = new THREE.PointLight(0xffaa66, 0.4); backLight.position.set(-2, 2, -4); scene.add(backLight);
+        const rimLight = new THREE.PointLight(0xffaa88, 0.5); rimLight.position.set(3, 3, -3); scene.add(rimLight);
+        
+        // Bintang latar (opsional, tetap ada)
+        const starGeometry = new THREE.BufferGeometry();
+        const starCount = 800;
+        const starPositions = new Float32Array(starCount * 3);
+        for(let i = 0; i < starCount; i++) {
+            starPositions[i*3] = (Math.random() - 0.5) * 200;
+            starPositions[i*3+1] = (Math.random() - 0.5) * 100;
+            starPositions[i*3+2] = (Math.random() - 0.5) * 80 - 40;
+        }
+        starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.05, transparent: true, opacity: 0.4 });
+        const stars = new THREE.Points(starGeometry, starMaterial);
+        scene.add(stars);
+    }
+    
+    // --- EVENT HANDLER ---
+    function showInputForShape(shape) {
+        const inputs = ['pointInput', 'triangleInput', 'squareInput', 'rectangleInput', 'pentagonInput', 'hexagonInput', 'circleInput', 'starInput'];
+        inputs.forEach(id => document.getElementById(id).style.display = 'none');
+        document.getElementById(`${shape}Input`).style.display = 'block';
+    }
+    
+    function setupEventListeners() {
+        const shapes = ['point', 'triangle', 'square', 'rectangle', 'pentagon', 'hexagon', 'circle', 'star'];
+        shapes.forEach(shape => {
+            document.getElementById(`shape${shape.charAt(0).toUpperCase() + shape.slice(1)}`).onclick = () => {
+                currentShape = shape;
+                document.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active'));
+                document.getElementById(`shape${shape.charAt(0).toUpperCase() + shape.slice(1)}`).classList.add('active');
+                showInputForShape(shape);
+                if(shape === 'pentagon') pentagonPoints = genPentagon();
+                if(shape === 'hexagon') hexagonPoints = genHexagon();
+                if(shape === 'circle') circlePoints = genCircle();
+                if(shape === 'star') starPoints = genStar();
+                directRotate();
+            };
+        });
+        
+        document.querySelectorAll('.angle-btn').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('.angle-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                targetAngle = parseInt(btn.dataset.angle);
+                directRotate();
+            };
+        });
+        
+        document.getElementById('rotateBtn').onclick = directRotate;
+        document.getElementById('animateBtn').onclick = startAnimation;
+        document.getElementById('stopBtn').onclick = stopAnimation;
+        document.getElementById('speedSlider').oninput = () => document.getElementById('speedValue').innerHTML = document.getElementById('speedSlider').value;
+        
+        // Apply buttons
+        document.getElementById('applyPointBtn').onclick = () => { pointData = { x: parseFloat(document.getElementById('pointX').value)||0, y: parseFloat(document.getElementById('pointY').value)||0 }; directRotate(); };
+        document.getElementById('resetPointBtn').onclick = () => { pointData = { x: 3, y: 2 }; document.getElementById('pointX').value=3; document.getElementById('pointY').value=2; directRotate(); };
+        document.getElementById('applyTriangleBtn').onclick = () => { trianglePoints = [{x:parseFloat(document.getElementById('triAx').value),y:parseFloat(document.getElementById('triAy').value),label:'A'},{x:parseFloat(document.getElementById('triBx').value),y:parseFloat(document.getElementById('triBy').value),label:'B'},{x:parseFloat(document.getElementById('triCx').value),y:parseFloat(document.getElementById('triCy').value),label:'C'}]; directRotate(); };
+        document.getElementById('resetTriangleBtn').onclick = () => { trianglePoints = [{ x: 0, y: 3, label:'A'},{ x: -2.5, y: -1.5, label:'B'},{ x: 2.5, y: -1.5, label:'C'}]; document.getElementById('triAx').value=0; document.getElementById('triAy').value=3; document.getElementById('triBx').value=-2.5; document.getElementById('triBy').value=-1.5; document.getElementById('triCx').value=2.5; document.getElementById('triCy').value=-1.5; directRotate(); };
+        document.getElementById('applySquareBtn').onclick = () => { squarePoints = [{x:parseFloat(document.getElementById('squareAx').value),y:parseFloat(document.getElementById('squareAy').value),label:'A'},{x:parseFloat(document.getElementById('squareBx').value),y:parseFloat(document.getElementById('squareBy').value),label:'B'},{x:parseFloat(document.getElementById('squareCx').value),y:parseFloat(document.getElementById('squareCy').value),label:'C'},{x:parseFloat(document.getElementById('squareDx').value),y:parseFloat(document.getElementById('squareDy').value),label:'D'}]; directRotate(); };
+        document.getElementById('resetSquareBtn').onclick = () => { squarePoints = [{ x: -2, y:2, label:'A'},{ x:2,y:2,label:'B'},{ x:2,y:-2,label:'C'},{ x:-2,y:-2,label:'D'}]; document.getElementById('squareAx').value=-2; document.getElementById('squareAy').value=2; document.getElementById('squareBx').value=2; document.getElementById('squareBy').value=2; document.getElementById('squareCx').value=2; document.getElementById('squareCy').value=-2; document.getElementById('squareDx').value=-2; document.getElementById('squareDy').value=-2; directRotate(); };
+        document.getElementById('applyRectangleBtn').onclick = () => { rectanglePoints = [{x:parseFloat(document.getElementById('rectAx').value),y:parseFloat(document.getElementById('rectAy').value),label:'A'},{x:parseFloat(document.getElementById('rectBx').value),y:parseFloat(document.getElementById('rectBy').value),label:'B'},{x:parseFloat(document.getElementById('rectCx').value),y:parseFloat(document.getElementById('rectCy').value),label:'C'},{x:parseFloat(document.getElementById('rectDx').value),y:parseFloat(document.getElementById('rectDy').value),label:'D'}]; directRotate(); };
+        document.getElementById('resetRectangleBtn').onclick = () => { rectanglePoints = [{ x:-3,y:1.5,label:'A'},{ x:3,y:1.5,label:'B'},{ x:3,y:-1.5,label:'C'},{ x:-3,y:-1.5,label:'D'}]; document.getElementById('rectAx').value=-3; document.getElementById('rectAy').value=1.5; document.getElementById('rectBx').value=3; document.getElementById('rectBy').value=1.5; document.getElementById('rectCx').value=3; document.getElementById('rectCy').value=-1.5; document.getElementById('rectDx').value=-3; document.getElementById('rectDy').value=-1.5; directRotate(); };
+        
+        function applyParam(){ pentagonPoints=genPentagon(); hexagonPoints=genHexagon(); circlePoints=genCircle(); starPoints=genStar(); directRotate(); }
+        document.getElementById('applyPentagonBtn').onclick = () => { pentagonParam={center:{x:parseFloat(document.getElementById('pentCenterX').value),y:parseFloat(document.getElementById('pentCenterY').value)}, radius:parseFloat(document.getElementById('pentRadius').value)}; applyParam(); };
+        document.getElementById('resetPentagonBtn').onclick = () => { document.getElementById('pentCenterX').value=0;document.getElementById('pentCenterY').value=0;document.getElementById('pentRadius').value=3; pentagonParam={center:{x:0,y:0},radius:3}; applyParam(); };
+        document.getElementById('applyHexagonBtn').onclick = () => { hexagonParam={center:{x:parseFloat(document.getElementById('hexCenterX').value),y:parseFloat(document.getElementById('hexCenterY').value)}, radius:parseFloat(document.getElementById('hexRadius').value)}; applyParam(); };
+        document.getElementById('resetHexagonBtn').onclick = () => { document.getElementById('hexCenterX').value=0;document.getElementById('hexCenterY').value=0;document.getElementById('hexRadius').value=3; hexagonParam={center:{x:0,y:0},radius:3}; applyParam(); };
+        document.getElementById('applyCircleBtn').onclick = () => { circleParam={center:{x:parseFloat(document.getElementById('circleCenterX').value),y:parseFloat(document.getElementById('circleCenterY').value)}, radius:parseFloat(document.getElementById('circleRadius').value)}; applyParam(); };
+        document.getElementById('resetCircleBtn').onclick = () => { document.getElementById('circleCenterX').value=0;document.getElementById('circleCenterY').value=0;document.getElementById('circleRadius').value=3; circleParam={center:{x:0,y:0},radius:3}; applyParam(); };
+        document.getElementById('applyStarBtn').onclick = () => { starParam={center:{x:parseFloat(document.getElementById('starCenterX').value),y:parseFloat(document.getElementById('starCenterY').value)}, rOuter:parseFloat(document.getElementById('starROuter').value), rInner:parseFloat(document.getElementById('starRInner').value)}; applyParam(); };
+        document.getElementById('resetStarBtn').onclick = () => { document.getElementById('starCenterX').value=0;document.getElementById('starCenterY').value=0;document.getElementById('starROuter').value=3;document.getElementById('starRInner').value=1.5; starParam={center:{x:0,y:0},rOuter:3,rInner:1.5}; applyParam(); };
+    }
+    
+    function handleResize() {
+        camera3D.aspect = window.innerWidth / window.innerHeight;
+        camera3D.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera3D);
+        labelRenderer.render(scene, camera3D);
+    }
+    
+    function init() {
+        addLights();
+        addCoordinateSystem();
+        setupEventListeners();
+        showInputForShape('point');
+        pentagonPoints = genPentagon();
+        hexagonPoints = genHexagon();
+        circlePoints = genCircle();
+        starPoints = genStar();
+        directRotate();
+        animate();
+        window.addEventListener('resize', handleResize);
+    }
+    
+    init();
+</script>
+</body>
+</html>
